@@ -1,0 +1,532 @@
+<!doctype html>
+<html lang="vi" class="h-full">
+ <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Birthday Manager</title>
+  <script src="/_sdk/data_sdk.js"></script>
+  <script src="/_sdk/element_sdk.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      box-sizing: border-box;
+    }
+    
+    @keyframes slideIn {
+      from {
+        transform: translateX(400px);
+        opacity: 0;
+      }
+      to {
+        transform: translateX(0);
+        opacity: 1;
+      }
+    }
+    
+    @keyframes slideOut {
+      from {
+        transform: translateX(0);
+        opacity: 1;
+      }
+      to {
+        transform: translateX(400px);
+        opacity: 0;
+      }
+    }
+    
+    .notification-enter {
+      animation: slideIn 0.3s ease-out forwards;
+    }
+    
+    .notification-exit {
+      animation: slideOut 0.3s ease-in forwards;
+    }
+    
+    .progress-bar {
+      animation: shrink 5s linear forwards;
+    }
+    
+    @keyframes shrink {
+      from {
+        width: 100%;
+      }
+      to {
+        width: 0%;
+      }
+    }
+  </style>
+  <style>@view-transition { navigation: auto; }</style>
+ </head>
+ <body class="h-full">
+  <div id="app" class="h-full w-full"></div>
+  <script>
+    const defaultConfig = {
+      background_color: "#fef3f2",
+      card_color: "#ffffff",
+      text_color: "#1a202c",
+      primary_action_color: "#ec4899",
+      secondary_action_color: "#8b5cf6",
+      app_title: "Quản lý sinh nhật",
+      add_button_text: "Thêm sinh nhật",
+      notification_time: "07:00",
+      font_family: "system-ui",
+      font_size: 16
+    };
+    
+    const SAMPLE_DATA = [
+      { name: "HUỲNH PHÚC AN", birthday: "06/11" },
+      { name: "PHÙ LÝ GIA AN", birthday: "27/04" },
+      { name: "LÊ THANH QUẾ ANH", birthday: "20/08" },
+      { name: "NGUYỄN NGỌC TRÂM ANH", birthday: "23/09" },
+      { name: "NGUYỄN HUỲNH GIA BẢO", birthday: "17/04" },
+      { name: "VŨ HOÀNG GIA CÁT", birthday: "08/12" },
+      { name: "TRẦN NGỌC MINH CHÂU", birthday: "23/03" },
+      { name: "TRẦN MINH DUY", birthday: "06/05" },
+      { name: "NGUYỄN HOÀNG ĐẠT", birthday: "12/09" },
+      { name: "NGÔ MINH ĐÔNG", birthday: "17/12" },
+      { name: "NGUYỄN NGỌC ĐỨC", birthday: "15/09" },
+      { name: "LÊ NGÂN HẠNH", birthday: "31/10" },
+      { name: "PHẠM NGỌC HÂN", birthday: "18/01" },
+      { name: "TÔ THUẬN HÙNG", birthday: "08/12" },
+      { name: "NGUYỄN MINH KHANG", birthday: "12/01" },
+      { name: "TRẦN ĐĂNG KHOA", birthday: "16/02" },
+      { name: "VĂN BÙI ĐĂNG KHÔI", birthday: "29/04" },
+      { name: "NGUYỄN HỒNG MỸ KIM", birthday: "10/12" },
+      { name: "TRỊNH THỊ NGỌC LINH", birthday: "09/02" },
+      { name: "NGUYỄN TIỂU LONG", birthday: "30/04" },
+      { name: "NGUYỄN KHẮC HOÀNG MINH", birthday: "19/09" },
+      { name: "LÊ NGUYỄN THẢO MY", birthday: "17/04" },
+      { name: "TRƯƠNG GIA NGHI", birthday: "30/08" },
+      { name: "NGUYỄN TRẦN NHÂN", birthday: "14/02" },
+      { name: "NGUYỄN NGỌC BẢO NHI", birthday: "02/01" },
+      { name: "TRƯƠNG GIA PHÁT", birthday: "09/11" },
+      { name: "NGÔ GIA PHÚ", birthday: "10/06" },
+      { name: "CAO MINH PHÚC", birthday: "27/10" },
+      { name: "ĐOÀN NHẬT QUANG", birthday: "01/06" },
+      { name: "NGUYỄN MINH QUÂN", birthday: "24/11" },
+      { name: "VŨ THÁI TÂM", birthday: "31/12" },
+      { name: "BÙI LÊ NHƯ THẢO", birthday: "11/08" },
+      { name: "NGUYỄN TRỊNH THIÊN", birthday: "27/07" },
+      { name: "LÂM HOÀNG GIA THUẬN", birthday: "20/10" },
+      { name: "LƯU BẢO THY", birthday: "28/01" },
+      { name: "VÕ MINH TRÍ", birthday: "18/10" },
+      { name: "LÊ THÚY THIÊN TÚ", birthday: "09/01" },
+      { name: "NGUYỄN CÁT TƯỜNG", birthday: "04/03" },
+      { name: "TẤT TẤN VĨ", birthday: "30/09" },
+      { name: "LÊ NGỌC TƯỜNG VY", birthday: "15/01" },
+      { name: "NGUYỄN NGỌC HÀ VY", birthday: "25/03" },
+      { name: "TRỊNH TUẤN VY", birthday: "10/08" },
+      { name: "NGUYỄN THỊ THẢO YẾN", birthday: "11/08" }
+    ];
+    
+    let birthdays = [];
+    let checkInterval = null;
+    let lastCheckDate = null;
+    
+    const dataHandler = {
+      onDataChanged(data) {
+        birthdays = data;
+        renderApp();
+        startBirthdayCheck();
+      }
+    };
+    
+    function startBirthdayCheck() {
+      if (checkInterval) {
+        clearInterval(checkInterval);
+      }
+      
+      checkBirthdays();
+      
+      checkInterval = setInterval(() => {
+        checkBirthdays();
+      }, 60000);
+    }
+    
+    function checkBirthdays() {
+      const config = window.elementSdk?.config || defaultConfig;
+      const notificationTime = config.notification_time || defaultConfig.notification_time;
+      
+      const now = new Date();
+      const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      const currentDate = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}`;
+      
+      if (currentTime === notificationTime && lastCheckDate !== currentDate) {
+        lastCheckDate = currentDate;
+        
+        const todayBirthdays = birthdays.filter(birthday => {
+          const [day, month] = birthday.birthday.split('/');
+          const birthdayDate = `${day}/${month}`;
+          return birthdayDate === currentDate;
+        });
+        
+        if (todayBirthdays.length > 0) {
+          const names = todayBirthdays.map(b => b.name).join(', ');
+          showNotification(
+            `🎂 Sinh nhật hôm nay! (${todayBirthdays.length})`,
+            names
+          );
+        }
+      }
+    }
+    
+    function showNotification(title, description) {
+      const container = document.getElementById('notification-container');
+      
+      const notification = document.createElement('div');
+      notification.className = 'notification-enter bg-white rounded-lg shadow-2xl p-4 mb-3 border-l-4 max-w-sm';
+      notification.style.borderLeftColor = window.elementSdk?.config?.primary_action_color || defaultConfig.primary_action_color;
+      
+      notification.innerHTML = `
+        <div class="flex items-start gap-3">
+          <div class="flex-shrink-0 text-2xl">
+            🎂
+          </div>
+          <div class="flex-1 min-w-0">
+            <h4 class="font-semibold text-gray-900 mb-1">${title}</h4>
+            <p class="text-sm text-gray-600">${description}</p>
+          </div>
+          <button onclick="this.closest('.notification-enter, .notification-exit').remove()" class="flex-shrink-0 text-gray-400 hover:text-gray-600">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+        <div class="mt-3 h-1 bg-gray-200 rounded-full overflow-hidden">
+          <div class="progress-bar h-full rounded-full" style="background-color: ${window.elementSdk?.config?.primary_action_color || defaultConfig.primary_action_color}"></div>
+        </div>
+      `;
+      
+      container.appendChild(notification);
+      
+      setTimeout(() => {
+        notification.classList.remove('notification-enter');
+        notification.classList.add('notification-exit');
+        setTimeout(() => notification.remove(), 300);
+      }, 5000);
+    }
+    
+    async function loadSampleData() {
+      const button = document.getElementById('load-sample-btn');
+      button.disabled = true;
+      button.textContent = 'Đang tải...';
+      
+      let successCount = 0;
+      let failCount = 0;
+      
+      for (let i = 0; i < SAMPLE_DATA.length; i++) {
+        const data = SAMPLE_DATA[i];
+        const result = await window.dataSdk.create({
+          id: `sample-${Date.now()}-${i}`,
+          name: data.name,
+          birthday: data.birthday,
+          createdAt: new Date().toISOString()
+        });
+        
+        if (result.isOk) {
+          successCount++;
+        } else {
+          failCount++;
+        }
+        
+        button.textContent = `Đang tải... ${i + 1}/${SAMPLE_DATA.length}`;
+      }
+      
+      showNotification('Hoàn thành!', `Đã tải ${successCount} sinh nhật thành công!`);
+    }
+    
+    function getDaysUntilBirthday(birthdayStr) {
+      const [day, month] = birthdayStr.split('/').map(Number);
+      const now = new Date();
+      const currentYear = now.getFullYear();
+      
+      let birthdayThisYear = new Date(currentYear, month - 1, day);
+      
+      if (birthdayThisYear < now) {
+        birthdayThisYear = new Date(currentYear + 1, month - 1, day);
+      }
+      
+      const diffTime = birthdayThisYear - now;
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      
+      return diffDays;
+    }
+    
+    function formatDaysUntil(days) {
+      if (days === 0) return '🎉 Hôm nay!';
+      if (days === 1) return '🎈 Ngày mai';
+      if (days <= 7) return `⏰ ${days} ngày nữa`;
+      if (days <= 30) return `📅 ${days} ngày nữa`;
+      return `📆 ${days} ngày nữa`;
+    }
+    
+    async function addBirthday(event) {
+      event.preventDefault();
+      
+      const form = event.target;
+      const name = form.querySelector('#name').value.trim();
+      const birthday = form.querySelector('#birthday').value;
+      
+      if (!name || !birthday) {
+        showNotification('Lỗi', 'Vui lòng nhập đầy đủ tên và ngày sinh!');
+        return;
+      }
+      
+      if (birthdays.length >= 999) {
+        showNotification('Giới hạn', 'Đã đạt giới hạn 999 sinh nhật. Vui lòng xóa bớt!');
+        return;
+      }
+      
+      const button = form.querySelector('button[type="submit"]');
+      button.disabled = true;
+      button.textContent = 'Đang thêm...';
+      
+      const result = await window.dataSdk.create({
+        id: Date.now().toString(),
+        name,
+        birthday,
+        createdAt: new Date().toISOString()
+      });
+      
+      button.disabled = false;
+      button.textContent = window.elementSdk?.config?.add_button_text || defaultConfig.add_button_text;
+      
+      if (result.isOk) {
+        form.reset();
+        showNotification('Thành công', `Đã thêm sinh nhật của ${name}!`);
+      } else {
+        showNotification('Lỗi', 'Không thể thêm sinh nhật. Vui lòng thử lại!');
+      }
+    }
+    
+    async function deleteBirthday(birthday) {
+      const card = document.querySelector(`[data-id="${birthday.__backendId}"]`);
+      const deleteBtn = card.querySelector('.delete-btn');
+      const confirmBtn = card.querySelector('.confirm-delete-btn');
+      
+      if (confirmBtn) {
+        confirmBtn.disabled = true;
+        confirmBtn.textContent = 'Đang xóa...';
+        
+        const result = await window.dataSdk.delete(birthday);
+        
+        if (!result.isOk) {
+          confirmBtn.disabled = false;
+          confirmBtn.textContent = 'Xác nhận xóa?';
+          showNotification('Lỗi', 'Không thể xóa sinh nhật!');
+        }
+      } else {
+        deleteBtn.style.display = 'none';
+        const confirmContainer = document.createElement('div');
+        confirmContainer.className = 'flex gap-2';
+        confirmContainer.innerHTML = `
+          <button class="confirm-delete-btn px-3 py-1 bg-red-500 text-white text-sm rounded hover:bg-red-600">Xác nhận xóa?</button>
+          <button class="cancel-delete-btn px-3 py-1 bg-gray-300 text-gray-700 text-sm rounded hover:bg-gray-400">Hủy</button>
+        `;
+        deleteBtn.parentNode.appendChild(confirmContainer);
+        
+        confirmContainer.querySelector('.confirm-delete-btn').onclick = () => deleteBirthday(birthday);
+        confirmContainer.querySelector('.cancel-delete-btn').onclick = () => {
+          confirmContainer.remove();
+          deleteBtn.style.display = 'block';
+        };
+      }
+    }
+    
+    function renderApp() {
+      const config = window.elementSdk?.config || defaultConfig;
+      const app = document.getElementById('app');
+      
+      app.style.backgroundColor = config.background_color;
+      app.style.fontFamily = `${config.font_family}, system-ui, sans-serif`;
+      
+      const sortedBirthdays = [...birthdays].sort((a, b) => {
+        return getDaysUntilBirthday(a.birthday) - getDaysUntilBirthday(b.birthday);
+      });
+      
+      const todayBirthdays = sortedBirthdays.filter(b => getDaysUntilBirthday(b.birthday) === 0);
+      const upcomingBirthdays = sortedBirthdays.filter(b => getDaysUntilBirthday(b.birthday) > 0);
+      
+      app.innerHTML = `
+        <div class="h-full w-full overflow-auto">
+          <div class="max-w-4xl mx-auto p-6">
+            <header class="mb-8 text-center">
+              <div class="text-6xl mb-3">🎂</div>
+              <h1 class="font-bold mb-2" style="color: ${config.text_color}; font-size: ${config.font_size * 2}px">${config.app_title}</h1>
+              <p class="text-gray-600" style="font-size: ${config.font_size * 0.9}px">Nhắc nhở lúc ${config.notification_time} mỗi ngày</p>
+            </header>
+            
+            ${birthdays.length === 0 ? `
+              <div class="rounded-lg shadow-lg p-6 mb-6" style="background-color: ${config.card_color}; border: 2px dashed ${config.secondary_action_color}">
+                <div class="text-center">
+                  <div class="text-5xl mb-3">🎁</div>
+                  <h3 class="font-semibold mb-2" style="color: ${config.text_color}; font-size: ${config.font_size * 1.2}px">Tải dữ liệu mẫu</h3>
+                  <p class="text-gray-600 mb-4" style="font-size: ${config.font_size * 0.9}px">Tải sẵn 43 sinh nhật của lớp học</p>
+                  <button onclick="loadSampleData()" id="load-sample-btn" class="px-6 py-3 text-white font-semibold rounded-lg hover:opacity-90 transition-opacity" style="background-color: ${config.secondary_action_color}; font-size: ${config.font_size}px">
+                    📥 Tải dữ liệu mẫu
+                  </button>
+                </div>
+              </div>
+            ` : ''}
+            
+            <div class="rounded-lg shadow-lg p-6 mb-8" style="background-color: ${config.card_color}">
+              <h2 class="font-semibold mb-4" style="color: ${config.text_color}; font-size: ${config.font_size * 1.3}px">Thêm sinh nhật mới</h2>
+              <form onsubmit="addBirthday(event)" class="space-y-4">
+                <div>
+                  <label for="name" class="block mb-2 font-medium" style="color: ${config.text_color}; font-size: ${config.font_size}px">Họ và tên</label>
+                  <input type="text" id="name" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent" style="font-size: ${config.font_size * 0.9}px" placeholder="Ví dụ: NGUYỄN VĂN A">
+                </div>
+                <div>
+                  <label for="birthday" class="block mb-2 font-medium" style="color: ${config.text_color}; font-size: ${config.font_size}px">Ngày sinh (DD/MM)</label>
+                  <input type="text" id="birthday" required pattern="\\d{2}/\\d{2}" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent" style="font-size: ${config.font_size * 0.9}px" placeholder="Ví dụ: 15/08">
+                </div>
+                <button type="submit" class="w-full py-3 text-white font-semibold rounded-lg hover:opacity-90 transition-opacity" style="background-color: ${config.primary_action_color}; font-size: ${config.font_size}px">
+                  ${config.add_button_text}
+                </button>
+              </form>
+            </div>
+            
+            ${todayBirthdays.length > 0 ? `
+              <div class="mb-6">
+                <h2 class="font-semibold mb-4 flex items-center gap-2" style="color: ${config.text_color}; font-size: ${config.font_size * 1.3}px">
+                  <span>🎉</span>
+                  <span>Sinh nhật hôm nay (${todayBirthdays.length})</span>
+                </h2>
+                <div class="space-y-3">
+                  ${todayBirthdays.map(birthday => `
+                    <div data-id="${birthday.__backendId}" class="rounded-lg shadow-lg p-4 border-2" style="background-color: ${config.card_color}; border-color: ${config.primary_action_color}">
+                      <div class="flex items-center gap-4">
+                        <div class="text-3xl">🎂</div>
+                        <div class="flex-1 min-w-0">
+                          <h3 class="font-semibold" style="color: ${config.text_color}; font-size: ${config.font_size * 1.1}px">${birthday.name}</h3>
+                          <p class="text-gray-600 mt-1" style="font-size: ${config.font_size * 0.85}px">📅 ${birthday.birthday} • ${formatDaysUntil(0)}</p>
+                        </div>
+                        <button onclick="deleteBirthday(${JSON.stringify(birthday).replace(/"/g, '&quot;')})" class="delete-btn flex-shrink-0 text-red-500 hover:text-red-700 p-2 rounded hover:bg-red-50">
+                          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                  `).join('')}
+                </div>
+              </div>
+            ` : ''}
+            
+            <div class="space-y-4">
+              <h2 class="font-semibold mb-4" style="color: ${config.text_color}; font-size: ${config.font_size * 1.3}px">Danh sách sinh nhật (${birthdays.length})</h2>
+              ${birthdays.length === 0 ? `
+                <div class="text-center py-12 rounded-lg" style="background-color: ${config.card_color}">
+                  <div class="text-6xl mb-4">🎈</div>
+                  <p class="text-gray-500" style="font-size: ${config.font_size}px">Chưa có sinh nhật nào. Click nút "Tải dữ liệu mẫu" ở trên!</p>
+                </div>
+              ` : upcomingBirthdays.map(birthday => {
+                const daysUntil = getDaysUntilBirthday(birthday.birthday);
+                return `
+                  <div data-id="${birthday.__backendId}" class="rounded-lg shadow p-4 flex items-center gap-4" style="background-color: ${config.card_color}">
+                    <div class="text-2xl">${daysUntil <= 7 ? '🎈' : '🎁'}</div>
+                    <div class="flex-1 min-w-0">
+                      <h3 class="font-semibold" style="color: ${config.text_color}; font-size: ${config.font_size * 1.1}px">${birthday.name}</h3>
+                      <p class="text-gray-600 mt-1" style="font-size: ${config.font_size * 0.85}px">📅 ${birthday.birthday} • ${formatDaysUntil(daysUntil)}</p>
+                    </div>
+                    <button onclick="deleteBirthday(${JSON.stringify(birthday).replace(/"/g, '&quot;')})" class="delete-btn flex-shrink-0 text-red-500 hover:text-red-700 p-2 rounded hover:bg-red-50">
+                      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                      </svg>
+                    </button>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+        </div>
+        
+        <div id="notification-container" class="fixed top-4 right-4 z-50 max-w-sm"></div>
+      `;
+    }
+    
+    async function onConfigChange(config) {
+      renderApp();
+      startBirthdayCheck();
+    }
+    
+    async function initApp() {
+      const initResult = await window.dataSdk.init(dataHandler);
+      if (!initResult.isOk) {
+        console.error("Failed to initialize data SDK");
+        return;
+      }
+      
+      if (window.elementSdk) {
+        window.elementSdk.init({
+          defaultConfig,
+          onConfigChange,
+          mapToCapabilities: (config) => ({
+            recolorables: [
+              {
+                get: () => config.background_color || defaultConfig.background_color,
+                set: (value) => {
+                  config.background_color = value;
+                  window.elementSdk.setConfig({ background_color: value });
+                }
+              },
+              {
+                get: () => config.card_color || defaultConfig.card_color,
+                set: (value) => {
+                  config.card_color = value;
+                  window.elementSdk.setConfig({ card_color: value });
+                }
+              },
+              {
+                get: () => config.text_color || defaultConfig.text_color,
+                set: (value) => {
+                  config.text_color = value;
+                  window.elementSdk.setConfig({ text_color: value });
+                }
+              },
+              {
+                get: () => config.primary_action_color || defaultConfig.primary_action_color,
+                set: (value) => {
+                  config.primary_action_color = value;
+                  window.elementSdk.setConfig({ primary_action_color: value });
+                }
+              },
+              {
+                get: () => config.secondary_action_color || defaultConfig.secondary_action_color,
+                set: (value) => {
+                  config.secondary_action_color = value;
+                  window.elementSdk.setConfig({ secondary_action_color: value });
+                }
+              }
+            ],
+            borderables: [],
+            fontEditable: {
+              get: () => config.font_family || defaultConfig.font_family,
+              set: (value) => {
+                config.font_family = value;
+                window.elementSdk.setConfig({ font_family: value });
+              }
+            },
+            fontSizeable: {
+              get: () => config.font_size || defaultConfig.font_size,
+              set: (value) => {
+                config.font_size = value;
+                window.elementSdk.setConfig({ font_size: value });
+              }
+            }
+          }),
+          mapToEditPanelValues: (config) => new Map([
+            ["app_title", config.app_title || defaultConfig.app_title],
+            ["add_button_text", config.add_button_text || defaultConfig.add_button_text],
+            ["notification_time", config.notification_time || defaultConfig.notification_time]
+          ])
+        });
+      }
+      
+      renderApp();
+    }
+    
+    initApp();
+  </script>
+ <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9b8a70492204c7ba',t:'MTc2NzUyNjU5MS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
