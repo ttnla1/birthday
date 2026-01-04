@@ -2,7 +2,11 @@
 <html lang="vi" class="h-full">
  <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#ec4899">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Sinh nhật">
   <title>Quản lý Sinh nhật</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
@@ -78,7 +82,7 @@
       { name: "VŨ HOÀNG GIA CÁT", birthday: "08/12" },
       { name: "TRẦN NGỌC MINH CHÂU", birthday: "23/03" },
       { name: "TRẦN MINH DUY", birthday: "06/05" },
-      { name: "NGUYỄN HOÀNG ĐẠT", birthday: "12/09" },
+      { name: "NGUYỄN HOÀNG Đ���T", birthday: "12/09" },
       { name: "NGÔ MINH ĐÔNG", birthday: "17/12" },
       { name: "NGUYỄN NGỌC ĐỨC", birthday: "15/09" },
       { name: "LÊ NGÂN HẠNH", birthday: "31/10" },
@@ -94,7 +98,7 @@
       { name: "LÊ NGUYỄN THẢO MY", birthday: "17/04" },
       { name: "TRƯƠNG GIA NGHI", birthday: "30/08" },
       { name: "NGUYỄN TRẦN NHÂN", birthday: "14/02" },
-      { name: "NGUYỄN NGỌC BẢO NHI", birthday: "02/01" },
+      { name: "NGUYỄN NG��C BẢO NHI", birthday: "02/01" },
       { name: "TRƯƠNG GIA PHÁT", birthday: "09/11" },
       { name: "NGÔ GIA PHÚ", birthday: "10/06" },
       { name: "CAO MINH PHÚC", birthday: "27/10" },
@@ -112,7 +116,7 @@
       { name: "LÊ NGỌC TƯỜNG VY", birthday: "15/01" },
       { name: "NGUYỄN NGỌC HÀ VY", birthday: "25/03" },
       { name: "TRỊNH TUẤN VY", birthday: "10/08" },
-      { name: "NGUYỄN THỊ THẢO YẾN", birthday: "11/08" }
+      { name: "NGUYỄN THỊ THẢO Y��N", birthday: "11/08" }
     ];
     
     let birthdays = [];
@@ -142,13 +146,26 @@
         return;
       }
       
-      const permission = await Notification.requestPermission();
-      notificationPermission = permission === "granted";
-      
-      if (notificationPermission) {
-        showNotification('Thành công', 'Đã bật thông báo sinh nhật!');
-      } else {
-        showNotification('Thất bại', 'Bạn đã từ chối thông báo.');
+      try {
+        const permission = await Notification.requestPermission();
+        notificationPermission = permission === "granted";
+        
+        if (notificationPermission) {
+          showNotification('Thành công', 'Đã bật thông báo sinh nhật! Bạn sẽ nhận thông báo lúc 7h sáng mỗi ngày.');
+          
+          // Test notification
+          new Notification('🎂 Thông báo đã hoạt động!', {
+            body: 'Bạn sẽ nhận được thông báo sinh nhật lúc 7h sáng mỗi ngày.',
+            icon: '🎂',
+            badge: '🎂',
+            vibrate: [200, 100, 200],
+            tag: 'test-notification'
+          });
+        } else {
+          showNotification('Thất bại', 'Bạn cần cho phép thông báo trong cài đặt trình duyệt.');
+        }
+      } catch (error) {
+        showNotification('Lỗi', 'Không thể yêu cầu quyền thông báo. Vui lòng thử lại!');
       }
       
       renderApp();
@@ -189,11 +206,19 @@
           );
           
           if (notificationPermission && "Notification" in window) {
-            new Notification(`🎂 Sinh nhật hôm nay! (${todayBirthdays.length})`, {
-              body: names,
-              icon: '🎂',
-              tag: 'birthday-notification'
-            });
+            try {
+              new Notification(`🎂 Sinh nhật hôm nay! (${todayBirthdays.length})`, {
+                body: names,
+                icon: '🎂',
+                badge: '🎂',
+                vibrate: [300, 100, 300, 100, 300],
+                tag: 'birthday-notification',
+                requireInteraction: true,
+                silent: false
+              });
+            } catch (error) {
+              console.log('Notification error:', error);
+            }
           }
         }
       }
@@ -390,20 +415,21 @@
       
       app.innerHTML = `
         <div class="h-full w-full overflow-auto bg-gradient-to-br from-pink-50 via-purple-50 to-blue-50">
-          <div class="max-w-4xl mx-auto p-6">
-            <header class="mb-8 text-center">
-              <div class="text-6xl mb-3">🎂</div>
-              <h1 class="text-4xl font-bold text-gray-800 mb-2">Quản lý Sinh nhật</h1>
-              <p class="text-gray-600">Nhắc nhở lúc ${NOTIFICATION_TIME} mỗi ngày</p>
+          <div class="max-w-4xl mx-auto p-4 sm:p-6">
+            <header class="mb-6 sm:mb-8 text-center">
+              <div class="text-5xl sm:text-6xl mb-3">🎂</div>
+              <h1 class="text-3xl sm:text-4xl font-bold text-gray-800 mb-2">Quản lý Sinh nhật</h1>
+              <p class="text-sm sm:text-base text-gray-600">Nhắc nhở lúc ${NOTIFICATION_TIME} mỗi ngày</p>
               
               ${hasNotificationSupport && !notificationGranted ? `
-                <div class="mt-4">
-                  <button onclick="requestNotificationPermission()" class="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors">
-                    🔔 Cho phép thông báo
+                <div class="mt-4 px-4">
+                  <button onclick="requestNotificationPermission()" class="w-full sm:w-auto px-6 py-3 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors shadow-lg text-base sm:text-sm font-medium active:scale-95 transform">
+                    🔔 Bật thông báo
                   </button>
+                  <p class="text-xs text-gray-500 mt-2">Nhấn để nhận thông báo sinh nhật hàng ngày</p>
                 </div>
               ` : notificationGranted ? `
-                <div class="mt-4 text-sm text-green-600 flex items-center justify-center gap-2">
+                <div class="mt-4 px-4 text-sm text-green-600 flex items-center justify-center gap-2">
                   <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                     <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
                   </svg>
@@ -425,29 +451,29 @@
               </div>
             ` : ''}
             
-            <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
-              <h2 class="text-xl font-semibold text-gray-800 mb-4">Thêm sinh nhật mới</h2>
+            <div class="bg-white rounded-lg shadow-lg p-4 sm:p-6 mb-6 sm:mb-8">
+              <h2 class="text-lg sm:text-xl font-semibold text-gray-800 mb-4">Thêm sinh nhật mới</h2>
               <form onsubmit="addBirthday(event)" class="space-y-4">
                 <div>
-                  <label for="name" class="block mb-2 font-medium text-gray-700">Họ và tên</label>
-                  <input type="text" id="name" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent" placeholder="Ví dụ: NGUYỄN VĂN A">
+                  <label for="name" class="block mb-2 font-medium text-gray-700 text-sm sm:text-base">Họ và tên</label>
+                  <input type="text" id="name" required class="w-full px-4 py-3 sm:py-2 text-base sm:text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent" placeholder="Ví dụ: NGUYỄN VĂN A">
                 </div>
                 <div>
-                  <label for="birthday" class="block mb-2 font-medium text-gray-700">Ngày sinh (DD/MM)</label>
-                  <input type="text" id="birthday" required pattern="\\d{2}/\\d{2}" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent" placeholder="Ví dụ: 15/08">
+                  <label for="birthday" class="block mb-2 font-medium text-gray-700 text-sm sm:text-base">Ngày sinh (DD/MM)</label>
+                  <input type="text" id="birthday" required pattern="\\d{2}/\\d{2}" inputmode="numeric" class="w-full px-4 py-3 sm:py-2 text-base sm:text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent" placeholder="Ví dụ: 15/08">
                 </div>
-                <button type="submit" class="w-full py-3 bg-pink-500 text-white font-semibold rounded-lg hover:bg-pink-600 transition-colors">
+                <button type="submit" class="w-full py-3 sm:py-3 bg-pink-500 text-white font-semibold rounded-lg hover:bg-pink-600 transition-colors text-base active:scale-95 transform shadow-md">
                   Thêm sinh nhật
                 </button>
               </form>
             </div>
             
             ${birthdays.length > 0 ? `
-              <div class="flex gap-3 mb-6">
-                <button onclick="exportData()" class="flex-1 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
+              <div class="flex flex-col sm:flex-row gap-3 mb-6">
+                <button onclick="exportData()" class="flex-1 px-4 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors active:scale-95 transform shadow-md text-base font-medium">
                   📤 Xuất dữ liệu
                 </button>
-                <button onclick="importData()" class="flex-1 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors">
+                <button onclick="importData()" class="flex-1 px-4 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors active:scale-95 transform shadow-md text-base font-medium">
                   📥 Nhập dữ liệu
                 </button>
               </div>
@@ -455,20 +481,20 @@
             
             ${todayBirthdays.length > 0 ? `
               <div class="mb-6">
-                <h2 class="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                <h2 class="text-lg sm:text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2">
                   <span>🎉</span>
                   <span>Sinh nhật hôm nay (${todayBirthdays.length})</span>
                 </h2>
                 <div class="space-y-3">
                   ${todayBirthdays.map(birthday => `
                     <div data-id="${birthday.id}" class="bg-white rounded-lg shadow-lg p-4 border-2 border-pink-500">
-                      <div class="flex items-center gap-4">
-                        <div class="text-3xl">🎂</div>
+                      <div class="flex items-center gap-3 sm:gap-4">
+                        <div class="text-2xl sm:text-3xl flex-shrink-0">🎂</div>
                         <div class="flex-1 min-w-0">
-                          <h3 class="font-semibold text-gray-800 text-lg">${birthday.name}</h3>
-                          <p class="text-gray-600 text-sm mt-1">📅 ${birthday.birthday} • ${formatDaysUntil(0)}</p>
+                          <h3 class="font-semibold text-gray-800 text-base sm:text-lg break-words">${birthday.name}</h3>
+                          <p class="text-gray-600 text-xs sm:text-sm mt-1">📅 ${birthday.birthday} • ${formatDaysUntil(0)}</p>
                         </div>
-                        <button onclick="deleteBirthday('${birthday.id}')" class="delete-btn flex-shrink-0 text-red-500 hover:text-red-700 p-2 rounded hover:bg-red-50">
+                        <button onclick="deleteBirthday('${birthday.id}')" class="delete-btn flex-shrink-0 text-red-500 hover:text-red-700 p-2 rounded hover:bg-red-50 active:bg-red-100">
                           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
                           </svg>
@@ -481,22 +507,22 @@
             ` : ''}
             
             <div class="space-y-4">
-              <h2 class="text-xl font-semibold text-gray-800 mb-4">Danh sách sinh nhật (${birthdays.length})</h2>
+              <h2 class="text-lg sm:text-xl font-semibold text-gray-800 mb-4">Danh sách sinh nhật (${birthdays.length})</h2>
               ${birthdays.length === 0 ? `
                 <div class="text-center py-12 bg-white rounded-lg shadow">
-                  <div class="text-6xl mb-4">🎈</div>
-                  <p class="text-gray-500">Chưa có sinh nhật nào. Click nút "Tải dữ liệu mẫu" ở trên!</p>
+                  <div class="text-5xl sm:text-6xl mb-4">🎈</div>
+                  <p class="text-gray-500 text-sm sm:text-base px-4">Chưa có sinh nhật nào. Click nút "Tải dữ liệu mẫu" ở trên!</p>
                 </div>
               ` : upcomingBirthdays.map(birthday => {
                 const daysUntil = getDaysUntilBirthday(birthday.birthday);
                 return `
-                  <div data-id="${birthday.id}" class="bg-white rounded-lg shadow p-4 flex items-center gap-4">
-                    <div class="text-2xl">${daysUntil <= 7 ? '🎈' : '🎁'}</div>
+                  <div data-id="${birthday.id}" class="bg-white rounded-lg shadow p-4 flex items-center gap-3 sm:gap-4">
+                    <div class="text-xl sm:text-2xl flex-shrink-0">${daysUntil <= 7 ? '🎈' : '🎁'}</div>
                     <div class="flex-1 min-w-0">
-                      <h3 class="font-semibold text-gray-800">${birthday.name}</h3>
-                      <p class="text-gray-600 text-sm mt-1">📅 ${birthday.birthday} • ${formatDaysUntil(daysUntil)}</p>
+                      <h3 class="font-semibold text-gray-800 text-sm sm:text-base break-words">${birthday.name}</h3>
+                      <p class="text-gray-600 text-xs sm:text-sm mt-1">📅 ${birthday.birthday} • ${formatDaysUntil(daysUntil)}</p>
                     </div>
-                    <button onclick="deleteBirthday('${birthday.id}')" class="delete-btn flex-shrink-0 text-red-500 hover:text-red-700 p-2 rounded hover:bg-red-50">
+                    <button onclick="deleteBirthday('${birthday.id}')" class="delete-btn flex-shrink-0 text-red-500 hover:text-red-700 p-2 rounded hover:bg-red-50 active:bg-red-100">
                       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
                       </svg>
@@ -508,7 +534,7 @@
           </div>
         </div>
         
-        <div id="notification-container" class="fixed top-4 right-4 z-50 max-w-sm"></div>
+        <div id="notification-container" class="fixed top-4 right-4 left-4 sm:left-auto z-50 max-w-sm mx-auto sm:mx-0"></div>
       `;
     }
     
@@ -524,5 +550,5 @@
     
     initApp();
   </script>
- <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9b8a7e82f796c7ba',t:'MTc2NzUyNzE3My4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+ <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9b8a8a380451c7ba',t:'MTc2NzUyNzY1My4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
