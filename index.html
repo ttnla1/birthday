@@ -3,13 +3,17 @@
  <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Birthday Manager</title>
-  <script src="/_sdk/data_sdk.js"></script>
-  <script src="/_sdk/element_sdk.js"></script>
+  <title>Quản lý Sinh nhật</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     body {
       box-sizing: border-box;
+    }
+    
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
     }
     
     @keyframes slideIn {
@@ -56,22 +60,14 @@
     }
   </style>
   <style>@view-transition { navigation: auto; }</style>
+  <script src="/_sdk/data_sdk.js" type="text/javascript"></script>
+  <script src="/_sdk/element_sdk.js" type="text/javascript"></script>
  </head>
  <body class="h-full">
   <div id="app" class="h-full w-full"></div>
   <script>
-    const defaultConfig = {
-      background_color: "#fef3f2",
-      card_color: "#ffffff",
-      text_color: "#1a202c",
-      primary_action_color: "#ec4899",
-      secondary_action_color: "#8b5cf6",
-      app_title: "Quản lý sinh nhật",
-      add_button_text: "Thêm sinh nhật",
-      notification_time: "07:00",
-      font_family: "system-ui",
-      font_size: 16
-    };
+    const STORAGE_KEY = 'birthday_manager_data';
+    const NOTIFICATION_TIME = '07:00';
     
     const SAMPLE_DATA = [
       { name: "HUỲNH PHÚC AN", birthday: "06/11" },
@@ -122,14 +118,41 @@
     let birthdays = [];
     let checkInterval = null;
     let lastCheckDate = null;
+    let notificationPermission = false;
     
-    const dataHandler = {
-      onDataChanged(data) {
-        birthdays = data;
-        renderApp();
-        startBirthdayCheck();
+    function loadData() {
+      const data = localStorage.getItem(STORAGE_KEY);
+      if (data) {
+        try {
+          birthdays = JSON.parse(data);
+        } catch (e) {
+          birthdays = [];
+        }
       }
-    };
+    }
+    
+    function saveData() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(birthdays));
+      renderApp();
+    }
+    
+    async function requestNotificationPermission() {
+      if (!("Notification" in window)) {
+        showNotification('Lỗi', 'Trình duyệt không hỗ trợ thông báo!');
+        return;
+      }
+      
+      const permission = await Notification.requestPermission();
+      notificationPermission = permission === "granted";
+      
+      if (notificationPermission) {
+        showNotification('Thành công', 'Đã bật thông báo sinh nhật!');
+      } else {
+        showNotification('Thất bại', 'Bạn đã từ chối thông báo.');
+      }
+      
+      renderApp();
+    }
     
     function startBirthdayCheck() {
       if (checkInterval) {
@@ -144,14 +167,11 @@
     }
     
     function checkBirthdays() {
-      const config = window.elementSdk?.config || defaultConfig;
-      const notificationTime = config.notification_time || defaultConfig.notification_time;
-      
       const now = new Date();
       const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
       const currentDate = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}`;
       
-      if (currentTime === notificationTime && lastCheckDate !== currentDate) {
+      if (currentTime === NOTIFICATION_TIME && lastCheckDate !== currentDate) {
         lastCheckDate = currentDate;
         
         const todayBirthdays = birthdays.filter(birthday => {
@@ -162,20 +182,29 @@
         
         if (todayBirthdays.length > 0) {
           const names = todayBirthdays.map(b => b.name).join(', ');
+          
           showNotification(
             `🎂 Sinh nhật hôm nay! (${todayBirthdays.length})`,
             names
           );
+          
+          if (notificationPermission && "Notification" in window) {
+            new Notification(`🎂 Sinh nhật hôm nay! (${todayBirthdays.length})`, {
+              body: names,
+              icon: '🎂',
+              tag: 'birthday-notification'
+            });
+          }
         }
       }
     }
     
     function showNotification(title, description) {
       const container = document.getElementById('notification-container');
+      if (!container) return;
       
       const notification = document.createElement('div');
-      notification.className = 'notification-enter bg-white rounded-lg shadow-2xl p-4 mb-3 border-l-4 max-w-sm';
-      notification.style.borderLeftColor = window.elementSdk?.config?.primary_action_color || defaultConfig.primary_action_color;
+      notification.className = 'notification-enter bg-white rounded-lg shadow-2xl p-4 mb-3 border-l-4 border-pink-500 max-w-sm';
       
       notification.innerHTML = `
         <div class="flex items-start gap-3">
@@ -193,7 +222,7 @@
           </button>
         </div>
         <div class="mt-3 h-1 bg-gray-200 rounded-full overflow-hidden">
-          <div class="progress-bar h-full rounded-full" style="background-color: ${window.elementSdk?.config?.primary_action_color || defaultConfig.primary_action_color}"></div>
+          <div class="progress-bar h-full bg-pink-500 rounded-full"></div>
         </div>
       `;
       
@@ -206,33 +235,29 @@
       }, 5000);
     }
     
-    async function loadSampleData() {
+    function loadSampleData() {
       const button = document.getElementById('load-sample-btn');
       button.disabled = true;
       button.textContent = 'Đang tải...';
       
-      let successCount = 0;
-      let failCount = 0;
-      
-      for (let i = 0; i < SAMPLE_DATA.length; i++) {
-        const data = SAMPLE_DATA[i];
-        const result = await window.dataSdk.create({
-          id: `sample-${Date.now()}-${i}`,
-          name: data.name,
-          birthday: data.birthday,
-          createdAt: new Date().toISOString()
-        });
-        
-        if (result.isOk) {
-          successCount++;
+      let count = 0;
+      const interval = setInterval(() => {
+        if (count < SAMPLE_DATA.length) {
+          const data = SAMPLE_DATA[count];
+          birthdays.push({
+            id: `sample-${Date.now()}-${count}`,
+            name: data.name,
+            birthday: data.birthday,
+            createdAt: new Date().toISOString()
+          });
+          count++;
+          button.textContent = `Đang tải... ${count}/${SAMPLE_DATA.length}`;
         } else {
-          failCount++;
+          clearInterval(interval);
+          saveData();
+          showNotification('Hoàn thành!', `Đã tải ${SAMPLE_DATA.length} sinh nhật thành công!`);
         }
-        
-        button.textContent = `Đang tải... ${i + 1}/${SAMPLE_DATA.length}`;
-      }
-      
-      showNotification('Hoàn thành!', `Đã tải ${successCount} sinh nhật thành công!`);
+      }, 50);
     }
     
     function getDaysUntilBirthday(birthdayStr) {
@@ -260,7 +285,7 @@
       return `📆 ${days} ngày nữa`;
     }
     
-    async function addBirthday(event) {
+    function addBirthday(event) {
       event.preventDefault();
       
       const form = event.target;
@@ -272,49 +297,26 @@
         return;
       }
       
-      if (birthdays.length >= 999) {
-        showNotification('Giới hạn', 'Đã đạt giới hạn 999 sinh nhật. Vui lòng xóa bớt!');
-        return;
-      }
-      
-      const button = form.querySelector('button[type="submit"]');
-      button.disabled = true;
-      button.textContent = 'Đang thêm...';
-      
-      const result = await window.dataSdk.create({
+      birthdays.push({
         id: Date.now().toString(),
         name,
         birthday,
         createdAt: new Date().toISOString()
       });
       
-      button.disabled = false;
-      button.textContent = window.elementSdk?.config?.add_button_text || defaultConfig.add_button_text;
-      
-      if (result.isOk) {
-        form.reset();
-        showNotification('Thành công', `Đã thêm sinh nhật của ${name}!`);
-      } else {
-        showNotification('Lỗi', 'Không thể thêm sinh nhật. Vui lòng thử lại!');
-      }
+      saveData();
+      form.reset();
+      showNotification('Thành công', `Đã thêm sinh nhật của ${name}!`);
     }
     
-    async function deleteBirthday(birthday) {
-      const card = document.querySelector(`[data-id="${birthday.__backendId}"]`);
+    function deleteBirthday(id) {
+      const card = document.querySelector(`[data-id="${id}"]`);
       const deleteBtn = card.querySelector('.delete-btn');
       const confirmBtn = card.querySelector('.confirm-delete-btn');
       
       if (confirmBtn) {
-        confirmBtn.disabled = true;
-        confirmBtn.textContent = 'Đang xóa...';
-        
-        const result = await window.dataSdk.delete(birthday);
-        
-        if (!result.isOk) {
-          confirmBtn.disabled = false;
-          confirmBtn.textContent = 'Xác nhận xóa?';
-          showNotification('Lỗi', 'Không thể xóa sinh nhật!');
-        }
+        birthdays = birthdays.filter(b => b.id !== id);
+        saveData();
       } else {
         deleteBtn.style.display = 'none';
         const confirmContainer = document.createElement('div');
@@ -325,7 +327,7 @@
         `;
         deleteBtn.parentNode.appendChild(confirmContainer);
         
-        confirmContainer.querySelector('.confirm-delete-btn').onclick = () => deleteBirthday(birthday);
+        confirmContainer.querySelector('.confirm-delete-btn').onclick = () => deleteBirthday(id);
         confirmContainer.querySelector('.cancel-delete-btn').onclick = () => {
           confirmContainer.remove();
           deleteBtn.style.display = 'block';
@@ -333,12 +335,48 @@
       }
     }
     
+    function exportData() {
+      const dataStr = JSON.stringify(birthdays, null, 2);
+      const dataBlob = new Blob([dataStr], { type: 'application/json' });
+      const url = URL.createObjectURL(dataBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `birthdays-${new Date().toISOString().split('T')[0]}.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+      showNotification('Thành công', 'Đã xuất dữ liệu!');
+    }
+    
+    function importData() {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'application/json';
+      input.onchange = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          try {
+            const importedData = JSON.parse(event.target.result);
+            if (Array.isArray(importedData)) {
+              birthdays = importedData;
+              saveData();
+              showNotification('Thành công', `Đã nhập ${birthdays.length} sinh nhật!`);
+            } else {
+              showNotification('Lỗi', 'File không đúng định dạng!');
+            }
+          } catch (error) {
+            showNotification('Lỗi', 'Không thể đọc file!');
+          }
+        };
+        reader.readAsText(file);
+      };
+      input.click();
+    }
+    
     function renderApp() {
-      const config = window.elementSdk?.config || defaultConfig;
       const app = document.getElementById('app');
-      
-      app.style.backgroundColor = config.background_color;
-      app.style.fontFamily = `${config.font_family}, system-ui, sans-serif`;
       
       const sortedBirthdays = [...birthdays].sort((a, b) => {
         return getDaysUntilBirthday(a.birthday) - getDaysUntilBirthday(b.birthday);
@@ -347,61 +385,90 @@
       const todayBirthdays = sortedBirthdays.filter(b => getDaysUntilBirthday(b.birthday) === 0);
       const upcomingBirthdays = sortedBirthdays.filter(b => getDaysUntilBirthday(b.birthday) > 0);
       
+      const hasNotificationSupport = "Notification" in window;
+      const notificationGranted = hasNotificationSupport && Notification.permission === "granted";
+      
       app.innerHTML = `
-        <div class="h-full w-full overflow-auto">
+        <div class="h-full w-full overflow-auto bg-gradient-to-br from-pink-50 via-purple-50 to-blue-50">
           <div class="max-w-4xl mx-auto p-6">
             <header class="mb-8 text-center">
               <div class="text-6xl mb-3">🎂</div>
-              <h1 class="font-bold mb-2" style="color: ${config.text_color}; font-size: ${config.font_size * 2}px">${config.app_title}</h1>
-              <p class="text-gray-600" style="font-size: ${config.font_size * 0.9}px">Nhắc nhở lúc ${config.notification_time} mỗi ngày</p>
+              <h1 class="text-4xl font-bold text-gray-800 mb-2">Quản lý Sinh nhật</h1>
+              <p class="text-gray-600">Nhắc nhở lúc ${NOTIFICATION_TIME} mỗi ngày</p>
+              
+              ${hasNotificationSupport && !notificationGranted ? `
+                <div class="mt-4">
+                  <button onclick="requestNotificationPermission()" class="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors">
+                    🔔 Cho phép thông báo
+                  </button>
+                </div>
+              ` : notificationGranted ? `
+                <div class="mt-4 text-sm text-green-600 flex items-center justify-center gap-2">
+                  <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                  </svg>
+                  <span>Đã bật thông báo</span>
+                </div>
+              ` : ''}
             </header>
             
             ${birthdays.length === 0 ? `
-              <div class="rounded-lg shadow-lg p-6 mb-6" style="background-color: ${config.card_color}; border: 2px dashed ${config.secondary_action_color}">
+              <div class="bg-white rounded-lg shadow-lg p-6 mb-6 border-2 border-dashed border-purple-300">
                 <div class="text-center">
                   <div class="text-5xl mb-3">🎁</div>
-                  <h3 class="font-semibold mb-2" style="color: ${config.text_color}; font-size: ${config.font_size * 1.2}px">Tải dữ liệu mẫu</h3>
-                  <p class="text-gray-600 mb-4" style="font-size: ${config.font_size * 0.9}px">Tải sẵn 43 sinh nhật của lớp học</p>
-                  <button onclick="loadSampleData()" id="load-sample-btn" class="px-6 py-3 text-white font-semibold rounded-lg hover:opacity-90 transition-opacity" style="background-color: ${config.secondary_action_color}; font-size: ${config.font_size}px">
+                  <h3 class="text-xl font-semibold text-gray-800 mb-2">Tải dữ liệu mẫu</h3>
+                  <p class="text-gray-600 mb-4">Tải sẵn 43 sinh nhật của lớp học</p>
+                  <button onclick="loadSampleData()" id="load-sample-btn" class="px-6 py-3 bg-purple-500 text-white font-semibold rounded-lg hover:bg-purple-600 transition-colors">
                     📥 Tải dữ liệu mẫu
                   </button>
                 </div>
               </div>
             ` : ''}
             
-            <div class="rounded-lg shadow-lg p-6 mb-8" style="background-color: ${config.card_color}">
-              <h2 class="font-semibold mb-4" style="color: ${config.text_color}; font-size: ${config.font_size * 1.3}px">Thêm sinh nhật mới</h2>
+            <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
+              <h2 class="text-xl font-semibold text-gray-800 mb-4">Thêm sinh nhật mới</h2>
               <form onsubmit="addBirthday(event)" class="space-y-4">
                 <div>
-                  <label for="name" class="block mb-2 font-medium" style="color: ${config.text_color}; font-size: ${config.font_size}px">Họ và tên</label>
-                  <input type="text" id="name" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent" style="font-size: ${config.font_size * 0.9}px" placeholder="Ví dụ: NGUYỄN VĂN A">
+                  <label for="name" class="block mb-2 font-medium text-gray-700">Họ và tên</label>
+                  <input type="text" id="name" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent" placeholder="Ví dụ: NGUYỄN VĂN A">
                 </div>
                 <div>
-                  <label for="birthday" class="block mb-2 font-medium" style="color: ${config.text_color}; font-size: ${config.font_size}px">Ngày sinh (DD/MM)</label>
-                  <input type="text" id="birthday" required pattern="\\d{2}/\\d{2}" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent" style="font-size: ${config.font_size * 0.9}px" placeholder="Ví dụ: 15/08">
+                  <label for="birthday" class="block mb-2 font-medium text-gray-700">Ngày sinh (DD/MM)</label>
+                  <input type="text" id="birthday" required pattern="\\d{2}/\\d{2}" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent" placeholder="Ví dụ: 15/08">
                 </div>
-                <button type="submit" class="w-full py-3 text-white font-semibold rounded-lg hover:opacity-90 transition-opacity" style="background-color: ${config.primary_action_color}; font-size: ${config.font_size}px">
-                  ${config.add_button_text}
+                <button type="submit" class="w-full py-3 bg-pink-500 text-white font-semibold rounded-lg hover:bg-pink-600 transition-colors">
+                  Thêm sinh nhật
                 </button>
               </form>
             </div>
             
+            ${birthdays.length > 0 ? `
+              <div class="flex gap-3 mb-6">
+                <button onclick="exportData()" class="flex-1 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
+                  📤 Xuất dữ liệu
+                </button>
+                <button onclick="importData()" class="flex-1 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors">
+                  📥 Nhập dữ liệu
+                </button>
+              </div>
+            ` : ''}
+            
             ${todayBirthdays.length > 0 ? `
               <div class="mb-6">
-                <h2 class="font-semibold mb-4 flex items-center gap-2" style="color: ${config.text_color}; font-size: ${config.font_size * 1.3}px">
+                <h2 class="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2">
                   <span>🎉</span>
                   <span>Sinh nhật hôm nay (${todayBirthdays.length})</span>
                 </h2>
                 <div class="space-y-3">
                   ${todayBirthdays.map(birthday => `
-                    <div data-id="${birthday.__backendId}" class="rounded-lg shadow-lg p-4 border-2" style="background-color: ${config.card_color}; border-color: ${config.primary_action_color}">
+                    <div data-id="${birthday.id}" class="bg-white rounded-lg shadow-lg p-4 border-2 border-pink-500">
                       <div class="flex items-center gap-4">
                         <div class="text-3xl">🎂</div>
                         <div class="flex-1 min-w-0">
-                          <h3 class="font-semibold" style="color: ${config.text_color}; font-size: ${config.font_size * 1.1}px">${birthday.name}</h3>
-                          <p class="text-gray-600 mt-1" style="font-size: ${config.font_size * 0.85}px">📅 ${birthday.birthday} • ${formatDaysUntil(0)}</p>
+                          <h3 class="font-semibold text-gray-800 text-lg">${birthday.name}</h3>
+                          <p class="text-gray-600 text-sm mt-1">📅 ${birthday.birthday} • ${formatDaysUntil(0)}</p>
                         </div>
-                        <button onclick="deleteBirthday(${JSON.stringify(birthday).replace(/"/g, '&quot;')})" class="delete-btn flex-shrink-0 text-red-500 hover:text-red-700 p-2 rounded hover:bg-red-50">
+                        <button onclick="deleteBirthday('${birthday.id}')" class="delete-btn flex-shrink-0 text-red-500 hover:text-red-700 p-2 rounded hover:bg-red-50">
                           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
                           </svg>
@@ -414,22 +481,22 @@
             ` : ''}
             
             <div class="space-y-4">
-              <h2 class="font-semibold mb-4" style="color: ${config.text_color}; font-size: ${config.font_size * 1.3}px">Danh sách sinh nhật (${birthdays.length})</h2>
+              <h2 class="text-xl font-semibold text-gray-800 mb-4">Danh sách sinh nhật (${birthdays.length})</h2>
               ${birthdays.length === 0 ? `
-                <div class="text-center py-12 rounded-lg" style="background-color: ${config.card_color}">
+                <div class="text-center py-12 bg-white rounded-lg shadow">
                   <div class="text-6xl mb-4">🎈</div>
-                  <p class="text-gray-500" style="font-size: ${config.font_size}px">Chưa có sinh nhật nào. Click nút "Tải dữ liệu mẫu" ở trên!</p>
+                  <p class="text-gray-500">Chưa có sinh nhật nào. Click nút "Tải dữ liệu mẫu" ở trên!</p>
                 </div>
               ` : upcomingBirthdays.map(birthday => {
                 const daysUntil = getDaysUntilBirthday(birthday.birthday);
                 return `
-                  <div data-id="${birthday.__backendId}" class="rounded-lg shadow p-4 flex items-center gap-4" style="background-color: ${config.card_color}">
+                  <div data-id="${birthday.id}" class="bg-white rounded-lg shadow p-4 flex items-center gap-4">
                     <div class="text-2xl">${daysUntil <= 7 ? '🎈' : '🎁'}</div>
                     <div class="flex-1 min-w-0">
-                      <h3 class="font-semibold" style="color: ${config.text_color}; font-size: ${config.font_size * 1.1}px">${birthday.name}</h3>
-                      <p class="text-gray-600 mt-1" style="font-size: ${config.font_size * 0.85}px">📅 ${birthday.birthday} • ${formatDaysUntil(daysUntil)}</p>
+                      <h3 class="font-semibold text-gray-800">${birthday.name}</h3>
+                      <p class="text-gray-600 text-sm mt-1">📅 ${birthday.birthday} • ${formatDaysUntil(daysUntil)}</p>
                     </div>
-                    <button onclick="deleteBirthday(${JSON.stringify(birthday).replace(/"/g, '&quot;')})" class="delete-btn flex-shrink-0 text-red-500 hover:text-red-700 p-2 rounded hover:bg-red-50">
+                    <button onclick="deleteBirthday('${birthday.id}')" class="delete-btn flex-shrink-0 text-red-500 hover:text-red-700 p-2 rounded hover:bg-red-50">
                       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
                       </svg>
@@ -445,88 +512,17 @@
       `;
     }
     
-    async function onConfigChange(config) {
+    function initApp() {
+      loadData();
       renderApp();
       startBirthdayCheck();
-    }
-    
-    async function initApp() {
-      const initResult = await window.dataSdk.init(dataHandler);
-      if (!initResult.isOk) {
-        console.error("Failed to initialize data SDK");
-        return;
-      }
       
-      if (window.elementSdk) {
-        window.elementSdk.init({
-          defaultConfig,
-          onConfigChange,
-          mapToCapabilities: (config) => ({
-            recolorables: [
-              {
-                get: () => config.background_color || defaultConfig.background_color,
-                set: (value) => {
-                  config.background_color = value;
-                  window.elementSdk.setConfig({ background_color: value });
-                }
-              },
-              {
-                get: () => config.card_color || defaultConfig.card_color,
-                set: (value) => {
-                  config.card_color = value;
-                  window.elementSdk.setConfig({ card_color: value });
-                }
-              },
-              {
-                get: () => config.text_color || defaultConfig.text_color,
-                set: (value) => {
-                  config.text_color = value;
-                  window.elementSdk.setConfig({ text_color: value });
-                }
-              },
-              {
-                get: () => config.primary_action_color || defaultConfig.primary_action_color,
-                set: (value) => {
-                  config.primary_action_color = value;
-                  window.elementSdk.setConfig({ primary_action_color: value });
-                }
-              },
-              {
-                get: () => config.secondary_action_color || defaultConfig.secondary_action_color,
-                set: (value) => {
-                  config.secondary_action_color = value;
-                  window.elementSdk.setConfig({ secondary_action_color: value });
-                }
-              }
-            ],
-            borderables: [],
-            fontEditable: {
-              get: () => config.font_family || defaultConfig.font_family,
-              set: (value) => {
-                config.font_family = value;
-                window.elementSdk.setConfig({ font_family: value });
-              }
-            },
-            fontSizeable: {
-              get: () => config.font_size || defaultConfig.font_size,
-              set: (value) => {
-                config.font_size = value;
-                window.elementSdk.setConfig({ font_size: value });
-              }
-            }
-          }),
-          mapToEditPanelValues: (config) => new Map([
-            ["app_title", config.app_title || defaultConfig.app_title],
-            ["add_button_text", config.add_button_text || defaultConfig.add_button_text],
-            ["notification_time", config.notification_time || defaultConfig.notification_time]
-          ])
-        });
+      if ("Notification" in window && Notification.permission === "granted") {
+        notificationPermission = true;
       }
-      
-      renderApp();
     }
     
     initApp();
   </script>
- <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9b8a70492204c7ba',t:'MTc2NzUyNjU5MS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+ <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9b8a7e82f796c7ba',t:'MTc2NzUyNzE3My4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
